@@ -1,0 +1,53 @@
+### Health check
+GET http://localhost:8080/actuator/health
+
+### List the available models
+GET http://localhost:8080/api/models
+
+### Zero spread: must equal the closed-form answer 151397.835 N
+POST http://localhost:8080/api/simulations
+Content-Type: application/json
+
+{
+  "modelId": "euler-column-buckling",
+  "samples": 1000,
+  "seed": 1,
+  "inputs": {
+    "youngsModulus":         { "type": "CONSTANT", "value": 200000000000 },
+    "diameter":              { "type": "CONSTANT", "value": 0.05 },
+    "length":                { "type": "CONSTANT", "value": 2.0 },
+    "effectiveLengthFactor": { "type": "CONSTANT", "value": 1.0 }
+  }
+}
+
+### Uncertain inputs (about 5 % modulus scatter, 1 % diameter, 0.5 % length)
+POST http://localhost:8080/api/simulations
+Content-Type: application/json
+
+{
+  "modelId": "euler-column-buckling",
+  "samples": 100000,
+  "seed": 2026,
+  "bins": 20,
+  "inputs": {
+    "youngsModulus":         { "type": "LOGNORMAL", "mean": 200000000000, "stdDev": 10000000000 },
+    "diameter":              { "type": "NORMAL", "mean": 0.05, "stdDev": 0.0005 },
+    "length":                { "type": "NORMAL", "mean": 2.0, "stdDev": 0.01 },
+    "effectiveLengthFactor": { "type": "UNIFORM", "min": 0.9, "max": 1.1 }
+  }
+}
+
+### Deliberately invalid: samples below the minimum of 100 (expect HTTP 400 with an "errors" map)
+POST http://localhost:8080/api/simulations
+Content-Type: application/json
+
+{
+  "modelId": "euler-column-buckling",
+  "samples": 5,
+  "inputs": {
+    "youngsModulus":         { "type": "CONSTANT", "value": 200000000000 },
+    "diameter":              { "type": "CONSTANT", "value": 0.05 },
+    "length":                { "type": "CONSTANT", "value": 2.0 },
+    "effectiveLengthFactor": { "type": "CONSTANT", "value": 1.0 }
+  }
+}

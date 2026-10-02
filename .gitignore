@@ -1,0 +1,30 @@
+# Build output
+target/
+build/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# Logs and local data
+*.log
+*.db
+*.mv.db
+*.trace.db
+
+# Secrets and environment files - never commit these
+.env
+.env.*
+*.pem
+*.key
+application-local.properties
+
+# Frontend (Phase 3)
+node_modules/
+dist/
+
+# OS files
+.DS_Store
+Thumbs.db
