@@ -1,6 +1,8 @@
 package com.anujbohre.uqlab.api;
 
 import com.anujbohre.uqlab.domain.montecarlo.NoValidSamplesException;
+import com.anujbohre.uqlab.job.JobNotFoundException;
+import com.anujbohre.uqlab.job.JobQueueFullException;
 import com.anujbohre.uqlab.service.InvalidSimulationRequestException;
 import com.anujbohre.uqlab.service.ModelNotFoundException;
 import java.util.LinkedHashMap;
@@ -54,6 +56,20 @@ public class ApiExceptionHandler {
     public ProblemDetail onNoValidSamples(NoValidSamplesException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
         problem.setTitle("No valid samples");
+        return problem;
+    }
+
+    @ExceptionHandler(JobNotFoundException.class)
+    public ProblemDetail onJobNotFound(JobNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Job not found");
+        return problem;
+    }
+
+    @ExceptionHandler(JobQueueFullException.class)
+    public ProblemDetail onQueueFull(JobQueueFullException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+        problem.setTitle("Job queue full");
         return problem;
     }
 }

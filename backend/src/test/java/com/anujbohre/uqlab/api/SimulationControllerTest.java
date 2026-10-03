@@ -39,12 +39,13 @@ class SimulationControllerTest {
             """;
 
     @Test
-    void listsTheEulerModel() throws Exception {
+    void listsTheThreeModels() throws Exception {
         mvc.perform(get("/api/models"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].id").value("euler-column-buckling"))
-                .andExpect(jsonPath("$[0].inputs", hasSize(4)));
+                .andExpect(jsonPath("$", hasSize(3)))
+                .andExpect(jsonPath("$[?(@.id == 'euler-column-buckling')]", hasSize(1)))
+                .andExpect(jsonPath("$[?(@.id == 'cantilever-tip-deflection')]", hasSize(1)))
+                .andExpect(jsonPath("$[?(@.id == 'spring-mass-natural-frequency')]", hasSize(1)));
     }
 
     @Test

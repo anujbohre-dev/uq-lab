@@ -1,7 +1,9 @@
 package com.anujbohre.uqlab;
 
+import com.anujbohre.uqlab.domain.model.CantileverDeflectionModel;
 import com.anujbohre.uqlab.domain.model.EulerColumnBucklingModel;
 import com.anujbohre.uqlab.domain.model.SimulationModel;
+import com.anujbohre.uqlab.domain.model.SpringMassFrequencyModel;
 import com.anujbohre.uqlab.domain.montecarlo.MonteCarloEngine;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,6 +21,16 @@ public class SimulationConfig {
     @Bean
     public SimulationModel eulerColumnBucklingModel() {
         return new EulerColumnBucklingModel();
+    }
+
+    @Bean
+    public SimulationModel cantileverDeflectionModel() {
+        return new CantileverDeflectionModel();
+    }
+
+    @Bean
+    public SimulationModel springMassFrequencyModel() {
+        return new SpringMassFrequencyModel();
     }
 
     @Bean

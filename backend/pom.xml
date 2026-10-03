@@ -17,7 +17,7 @@
     <artifactId>uq-lab-backend</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <name>uq-lab-backend</name>
-    <description>Monte Carlo Uncertainty Lab - backend (Phase 1)</description>
+    <description>Monte Carlo Uncertainty Lab - backend (Phase 2)</description>
 
     <properties>
         <!-- Java language level. If Maven reports that this Java version is unsupported by the
@@ -41,6 +41,17 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <!-- JPA (Hibernate) + Spring Data repositories: saves jobs in a database -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <!-- H2: a small database that runs inside the application (file on disk, no install) -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
         </dependency>
         <!-- Generates the OpenAPI description and the Swagger UI test page -->
         <dependency>

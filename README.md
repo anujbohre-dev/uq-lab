@@ -12,18 +12,18 @@ standard deviation, percentiles and a histogram of the load.
 
 | Phase | Content | State |
 |-------|---------|-------|
-| 1 | Backend core: Euler model, distributions, seeded Monte Carlo, REST endpoint, tests | **this version** |
-| 2 | Asynchronous jobs, job status, persistence (JPA), more models | planned |
+| 1 | Backend core: Euler model, distributions, seeded Monte Carlo, REST endpoint, tests | done |
+| 2 | Asynchronous jobs, job status, persistence (JPA + H2), pagination, two more models | **this version** |
 | 3 | React frontend (form, job list, histogram) | planned |
 | 4 | Authentication (Spring Security, JWT) | planned |
 | 5 | PostgreSQL and Flyway migrations | planned |
 | 6 | Docker Compose and GitHub Actions CI | planned |
 | 7 | Documentation and demonstration | planned |
 
-## Tech stack (Phase 1)
+## Tech stack (Phase 2)
 
-Java 25, Spring Boot 3.5, Maven, Jakarta Bean Validation, springdoc-openapi (Swagger UI),
-JUnit 5 and MockMvc.
+Java 25, Spring Boot 3.5, Maven, Jakarta Bean Validation, Spring Data JPA (Hibernate) with an H2 file database,
+springdoc-openapi (Swagger UI), JUnit 5, MockMvc and Awaitility.
 
 ## Running it (IntelliJ IDEA)
 
@@ -40,13 +40,25 @@ If Maven reports that Java 25 is not supported by this Spring Boot version, chan
 
 ## Running the tests
 
-Right-click `backend/src/test/java` and choose **Run 'All Tests'**. Expected: 35 tests pass
-(24 on the calculation core, 11 on the HTTP API).
+Right-click `backend/src/test/java` and choose **Run 'All Tests'**. Expected: 66 tests pass
+(36 on the calculation core and models, 11 on the job service, 19 on the HTTP API).
 
 ## API
 
 - `GET /api/models` lists models and their inputs.
-- `POST /api/simulations` runs a simulation.
+- `POST /api/simulations` runs a simulation and waits for the answer (synchronous).
+- `POST /api/jobs` queues the same simulation and returns `202 Accepted` at once, with a `Location` header.
+- `GET /api/jobs/{id}` returns the job: `status` is `QUEUED`, `RUNNING`, `DONE` or `FAILED`; `result` appears when `DONE`, `errorMessage` when `FAILED`.
+- `GET /api/jobs?status=DONE&page=0&size=20` lists jobs, newest first, with `items`, `page`, `size`, `totalItems` and `totalPages`. `status` is optional; `size` is 1 to 100.
+
+Available models (each lists its inputs at `GET /api/models`):
+
+- `euler-column-buckling`: critical buckling load, N.
+- `cantilever-tip-deflection`: tip deflection of a cantilever with an end load, m.
+- `spring-mass-natural-frequency`: natural frequency of a spring-mass system, Hz.
+
+Jobs are stored in an H2 database file under `data/` (ignored by Git), so they survive a restart.
+A job that was still `QUEUED` or `RUNNING` when the server stopped is marked `FAILED` at the next start.
 
 Request body (all four inputs of the model are required):
 
@@ -82,8 +94,9 @@ Request body (all four inputs of the model are required):
 ## Design
 
 ```
-api/        HTTP layer: controller, request/response records, error handling
+api/        HTTP layer: controllers, request/response records, error handling
 service/    application logic: validation, building distributions, calling the engine
+job/        asynchronous jobs: entity, storage port (JobStore), JPA adapter, thread pool, JobService
 domain/     plain Java, no Spring: distributions, models, Monte Carlo engine, statistics
 ```
 
@@ -94,5 +107,7 @@ and one `@Bean` in `SimulationConfig`.
 ## Limitations
 
 - The Euler formula is valid only for slender columns; the model does not check slenderness.
-- Simulations run synchronously inside the request (asynchronous jobs arrive in Phase 2).
+- The job queue lives in memory: a restart fails unfinished jobs rather than resuming them. A multi-server deployment would need a shared queue.
+- Two jobs run at a time and up to 100 wait; beyond that the API answers `503`.
+- Anyone can read every job: there is no authentication until Phase 4.
 - Inputs are sampled independently; correlated inputs are not supported.

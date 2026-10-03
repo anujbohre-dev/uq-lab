@@ -9,8 +9,10 @@ import com.anujbohre.uqlab.domain.model.SimulationModel;
 import com.anujbohre.uqlab.domain.montecarlo.MonteCarloEngine;
 import com.anujbohre.uqlab.domain.montecarlo.SimulationResult;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.stereotype.Service;
 
@@ -37,7 +39,39 @@ public class SimulationService {
         return registry.all().stream().map(ModelInfo::from).toList();
     }
 
+    /**
+     * Checks that a request can be run, without running it: the model exists, the input names
+     * match the model's inputs and every distribution is well formed.
+     *
+     * @throws ModelNotFoundException if the model id is unknown
+     * @throws InvalidSimulationRequestException if the inputs or distributions are invalid
+     */
+    public void validate(SimulationRequest request) {
+        prepare(request);
+    }
+
     public SimulationResponse run(SimulationRequest request) {
+        Prepared p = prepare(request);
+
+        long start = System.nanoTime();
+        SimulationResult result;
+        try {
+            result = engine.run(p.model(), p.distributions(), p.samples(), p.seed(), p.bins());
+        } catch (IllegalArgumentException e) {
+            // e.g. a missing or unknown input name
+            throw new InvalidSimulationRequestException(e.getMessage(), e);
+        }
+        long elapsedMillis = (System.nanoTime() - start) / 1_000_000;
+
+        return SimulationResponse.from(
+                p.model().id(), p.model().outputName(), p.model().outputUnit(), result, elapsedMillis);
+    }
+
+    /** Everything needed to call the engine, with defaults applied. */
+    private record Prepared(
+            SimulationModel model, Map<String, Distribution> distributions, int samples, int bins, long seed) {}
+
+    private Prepared prepare(SimulationRequest request) {
         SimulationModel model = registry.find(request.modelId())
                 .orElseThrow(() -> new ModelNotFoundException(request.modelId()));
 
@@ -50,22 +84,28 @@ public class SimulationService {
                         "Input '" + entry.getKey() + "': " + e.getMessage(), e);
             }
         }
+        checkInputNames(model, distributions);
 
         int samples = request.samples() != null ? request.samples() : DEFAULT_SAMPLES;
         int bins = request.bins() != null ? request.bins() : DEFAULT_BINS;
         // Kept below 2^31 so the value survives a round trip through JavaScript numbers.
         long seed = request.seed() != null ? request.seed() : ThreadLocalRandom.current().nextInt(Integer.MAX_VALUE);
+        return new Prepared(model, distributions, samples, bins, seed);
+    }
 
-        long start = System.nanoTime();
-        SimulationResult result;
-        try {
-            result = engine.run(model, distributions, samples, seed, bins);
-        } catch (IllegalArgumentException e) {
-            // e.g. a missing or unknown input name
-            throw new InvalidSimulationRequestException(e.getMessage(), e);
+    private static void checkInputNames(SimulationModel model, Map<String, Distribution> distributions) {
+        Set<String> expected = new LinkedHashSet<>();
+        model.inputs().forEach(i -> expected.add(i.name()));
+        for (String name : expected) {
+            if (!distributions.containsKey(name)) {
+                throw new InvalidSimulationRequestException("Missing distribution for input '" + name + "'");
+            }
         }
-        long elapsedMillis = (System.nanoTime() - start) / 1_000_000;
-
-        return SimulationResponse.from(model.id(), model.outputName(), model.outputUnit(), result, elapsedMillis);
+        for (String name : distributions.keySet()) {
+            if (!expected.contains(name)) {
+                throw new InvalidSimulationRequestException(
+                        "Unknown input '" + name + "'; expected " + expected);
+            }
+        }
     }
 }

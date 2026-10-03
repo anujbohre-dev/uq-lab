@@ -51,3 +51,58 @@ Content-Type: application/json
     "effectiveLengthFactor": { "type": "CONSTANT", "value": 1.0 }
   }
 }
+
+### Phase 2 - queue an asynchronous job (expect 202 and a Location header; copy the id)
+POST http://localhost:8080/api/jobs
+Content-Type: application/json
+
+{
+  "modelId": "euler-column-buckling",
+  "samples": 100000,
+  "seed": 2026,
+  "inputs": {
+    "youngsModulus":         { "type": "LOGNORMAL", "mean": 200000000000, "stdDev": 10000000000 },
+    "diameter":              { "type": "NORMAL", "mean": 0.05, "stdDev": 0.0005 },
+    "length":                { "type": "NORMAL", "mean": 2.0, "stdDev": 0.01 },
+    "effectiveLengthFactor": { "type": "UNIFORM", "min": 0.9, "max": 1.1 }
+  }
+}
+
+### Poll one job (replace JOB_ID with the id returned above)
+GET http://localhost:8080/api/jobs/JOB_ID
+
+### List jobs: newest first, 5 per page
+GET http://localhost:8080/api/jobs?page=0&size=5
+
+### List only finished jobs
+GET http://localhost:8080/api/jobs?status=DONE
+
+### Cantilever tip deflection (P = 1 kN, L = 1 m, steel, d = 50 mm: deterministic value 5.4325 mm)
+POST http://localhost:8080/api/jobs
+Content-Type: application/json
+
+{
+  "modelId": "cantilever-tip-deflection",
+  "samples": 50000,
+  "seed": 7,
+  "inputs": {
+    "load":          { "type": "NORMAL", "mean": 1000, "stdDev": 100 },
+    "length":        { "type": "NORMAL", "mean": 1.0, "stdDev": 0.005 },
+    "youngsModulus": { "type": "LOGNORMAL", "mean": 200000000000, "stdDev": 10000000000 },
+    "diameter":      { "type": "NORMAL", "mean": 0.05, "stdDev": 0.0005 }
+  }
+}
+
+### Spring-mass natural frequency (k = 1000 N/m, m = 1 kg: deterministic value 5.0329 Hz)
+POST http://localhost:8080/api/jobs
+Content-Type: application/json
+
+{
+  "modelId": "spring-mass-natural-frequency",
+  "samples": 50000,
+  "seed": 7,
+  "inputs": {
+    "stiffness": { "type": "NORMAL", "mean": 1000, "stdDev": 50 },
+    "mass":      { "type": "UNIFORM", "min": 0.95, "max": 1.05 }
+  }
+}
