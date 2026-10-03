@@ -13,17 +13,19 @@ standard deviation, percentiles and a histogram of the load.
 | Phase | Content | State |
 |-------|---------|-------|
 | 1 | Backend core: Euler model, distributions, seeded Monte Carlo, REST endpoint, tests | done |
-| 2 | Asynchronous jobs, job status, persistence (JPA + H2), pagination, two more models | **this version** |
-| 3 | React frontend (form, job list, histogram) | planned |
+| 2 | Asynchronous jobs, job status, persistence (JPA + H2), pagination, two more models | done |
+| 3 | React frontend: run form, jobs list with live status, result view with histogram | **this version** |
 | 4 | Authentication (Spring Security, JWT) | planned |
 | 5 | PostgreSQL and Flyway migrations | planned |
 | 6 | Docker Compose and GitHub Actions CI | planned |
 | 7 | Documentation and demonstration | planned |
 
-## Tech stack (Phase 2)
+## Tech stack (Phase 3)
 
-Java 25, Spring Boot 3.5, Maven, Jakarta Bean Validation, Spring Data JPA (Hibernate) with an H2 file database,
+Backend: Java 25, Spring Boot 3.5, Maven, Jakarta Bean Validation, Spring Data JPA (Hibernate) with an H2 file database,
 springdoc-openapi (Swagger UI), JUnit 5, MockMvc and Awaitility.
+
+Frontend: React 19, Vite 8 (development server and build), Vitest and Testing Library. The histogram is drawn as plain SVG, with no chart library.
 
 ## Running it (IntelliJ IDEA)
 
@@ -37,6 +39,25 @@ springdoc-openapi (Swagger UI), JUnit 5, MockMvc and Awaitility.
 8. Stop the server with the red square in IntelliJ.
 
 If Maven reports that Java 25 is not supported by this Spring Boot version, change `<java.version>25</java.version>` to `21` in `backend/pom.xml` and reload Maven. Nothing else needs to change.
+
+## Running the web page (Phase 3)
+
+1. Start the backend first (see above); it must be listening on port 8080.
+2. Open PowerShell and run:
+
+```
+cd C:\Dev\uq-lab\frontend
+npm install
+npm run dev
+```
+
+3. Open <http://localhost:5173>. The first `npm install` needs internet and takes about a minute.
+4. Choose a model, adjust the numbers if you wish, and press **Run simulation**. The job appears in the list, changes from Queued to Running to Done by itself, and the result view shows the statistics and the histogram.
+5. Stop the page server with Ctrl+C.
+
+While `npm run dev` runs, every URL that starts with `/api` is forwarded to port 8080 (see `frontend/vite.config.js`), so the browser talks to one address and the backend needs no CORS settings.
+
+Frontend tests: `npm test` inside the `frontend` folder. Expected: 34 tests pass.
 
 ## Running the tests
 
@@ -94,6 +115,15 @@ Request body (all four inputs of the model are required):
 ## Design
 
 ```
+frontend/src/
+  api/client.js        the only file that talks to the backend; turns errors into ApiError
+  lib/                 pure helpers: number formatting, request building and checking, form presets
+  hooks/usePolled.js   loads data and keeps reloading it while a job is unfinished
+  components/          RunForm, DistributionField, JobsPanel, JobDetail, Histogram, StatusBadge
+  App.jsx              the page: loads the models, lays out the three areas
+```
+
+```
 api/        HTTP layer: controllers, request/response records, error handling
 service/    application logic: validation, building distributions, calling the engine
 job/        asynchronous jobs: entity, storage port (JobStore), JPA adapter, thread pool, JobService
@@ -110,4 +140,6 @@ and one `@Bean` in `SimulationConfig`.
 - The job queue lives in memory: a restart fails unfinished jobs rather than resuming them. A multi-server deployment would need a shared queue.
 - Two jobs run at a time and up to 100 wait; beyond that the API answers `503`.
 - Anyone can read every job: there is no authentication until Phase 4.
+- The page checks values before sending them, but the backend repeats every check; the browser is never trusted.
+- The page asks the server for news every two seconds while a job is unfinished (polling). Push updates (WebSocket or server-sent events) would remove the repeated requests.
 - Inputs are sampled independently; correlated inputs are not supported.
