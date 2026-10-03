@@ -17,8 +17,44 @@ standard deviation, percentiles and a histogram of the load.
 | 3 | React frontend: run form, jobs list with live status, result view with histogram | done |
 | 4 | Authentication: register, sign in, JWT, each user sees only their own jobs | done |
 | 5 | PostgreSQL and Flyway migrations (optional "postgres" profile; H2 stays the default) | done |
-| 6 | Docker Compose and GitHub Actions CI | **this version** |
-| 7 | Documentation and demonstration | planned |
+| 6 | Docker Compose and GitHub Actions CI | done |
+| 7 | Documentation, architecture diagram, demo script, interview guide | **this version** |
+
+## Screenshots
+
+Sign-in page, and a finished Euler column buckling run (mean, standard deviation, histogram, percentiles):
+
+![Sign-in page](docs/screenshots/sign-in.png)
+
+![Result of a simulation](docs/screenshots/result.png)
+
+A second user starts with an empty job list: jobs are private to their owner.
+
+![A second user sees no jobs](docs/screenshots/empty-jobs-second-user.png)
+
+## Architecture
+
+```mermaid
+flowchart LR
+    B[Browser: React page] -->|"/api with Bearer token"| N[nginx or Vite proxy]
+    N --> C[Controllers: api/]
+    C --> S[Services: service/ and job/]
+    S --> Q[Thread pool: 2 workers, queue 100]
+    Q --> E[Monte Carlo engine: domain/]
+    S --> R[(JobStore: JPA)]
+    R --> D[(PostgreSQL via Flyway, or H2)]
+    C --> A[Security filter: JWT check]
+```
+
+A request first passes the security filter, which verifies the token signature, expiry and issuer.
+A controller validates the input and hands it to a service. For asynchronous jobs the service stores
+a QUEUED row and returns 202 at once; a worker thread then runs the Monte Carlo engine, which has no
+framework dependency, and stores the result. The page polls the job until it is DONE or FAILED.
+
+## Demonstration
+
+A two-minute script is in `docs/demo-script.md`. A guide to explaining the project, with likely
+interview questions, is in `docs/interview-guide.md`.
 
 ## Tech stack (Phase 5)
 
