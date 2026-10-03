@@ -17,7 +17,7 @@
     <artifactId>uq-lab-backend</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <name>uq-lab-backend</name>
-    <description>Monte Carlo Uncertainty Lab - backend (Phase 4)</description>
+    <description>Monte Carlo Uncertainty Lab - backend (Phase 5)</description>
 
     <properties>
         <!-- Java language level. If Maven reports that this Java version is unsupported by the
@@ -58,6 +58,21 @@
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>${springdoc.version}</version>
+        </dependency>
+        <!-- PostgreSQL (Phase 5): the driver, and Flyway for versioned schema migrations -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+            <scope>runtime</scope>
         </dependency>
         <!-- Spring Security: password hashing, request filters, and the "who may call what" rules -->
         <dependency>

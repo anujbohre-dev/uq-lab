@@ -15,14 +15,14 @@ standard deviation, percentiles and a histogram of the load.
 | 1 | Backend core: Euler model, distributions, seeded Monte Carlo, REST endpoint, tests | done |
 | 2 | Asynchronous jobs, job status, persistence (JPA + H2), pagination, two more models | done |
 | 3 | React frontend: run form, jobs list with live status, result view with histogram | done |
-| 4 | Authentication: register, sign in, JWT, each user sees only their own jobs | **this version** |
-| 5 | PostgreSQL and Flyway migrations | planned |
+| 4 | Authentication: register, sign in, JWT, each user sees only their own jobs | done |
+| 5 | PostgreSQL and Flyway migrations (optional "postgres" profile; H2 stays the default) | **this version** |
 | 6 | Docker Compose and GitHub Actions CI | planned |
 | 7 | Documentation and demonstration | planned |
 
-## Tech stack (Phase 4)
+## Tech stack (Phase 5)
 
-Backend: Java 25, Spring Boot 3.5, Maven, Jakarta Bean Validation, Spring Data JPA (Hibernate) with an H2 file database,
+Backend: Java 25, Spring Boot 3.5, Maven, Jakarta Bean Validation, Spring Data JPA (Hibernate) with an H2 file database by default or PostgreSQL with Flyway migrations (profile `postgres`),
 Spring Security with JWT (HS256, via Spring's own Nimbus support) and BCrypt, springdoc-openapi (Swagger UI), JUnit 5, MockMvc and Awaitility.
 
 Frontend: React 19, Vite 8 (development server and build), Vitest and Testing Library. The histogram is drawn as plain SVG, with no chart library.
@@ -61,8 +61,21 @@ Frontend tests: `npm test` inside the `frontend` folder. Expected: 50 tests pass
 
 ## Running the tests
 
-Right-click `backend/src/test/java` and choose **Run 'All Tests'**. Expected: 94 tests pass
-(36 on the calculation core and models, 14 on the job service, 21 on the job and simulation API, 23 on login and security).
+Right-click `backend/src/test/java` and choose **Run 'All Tests'**. Expected: 98 tests pass
+(36 on the calculation core and models, 14 on the job service, 21 on the job and simulation API, 23 on login and security, 4 guarding the database migration scripts).
+
+## Using PostgreSQL (Phase 5)
+
+By default the application uses the H2 file database, so nothing needs installing. To use PostgreSQL instead:
+
+1. Create an empty database: in **pgAdmin** right-click Databases, Create, Database, name it `uqlab`. (Or in `psql`: `CREATE DATABASE uqlab;`)
+2. In IntelliJ open **Run, Edit Configurations**, select `UqLabApplication`, and under **Environment variables** enter (separated by semicolons):
+   `SPRING_PROFILES_ACTIVE=postgres;UQLAB_DB_PASSWORD=<your postgres password>`
+   Optional extras: `UQLAB_DB_HOST` (default localhost), `UQLAB_DB_PORT` (5432), `UQLAB_DB_NAME` (uqlab), `UQLAB_DB_USER` (postgres).
+3. Run the application. Flyway creates the tables from `src/main/resources/db/migration` (V1 tables, V2 indexes) and records them in the table `flyway_schema_history`. Hibernate then only validates that the tables match the entities.
+4. The new database is empty: register a fresh account. Data in the H2 file is not copied over.
+
+Never write the password into a file that is committed to Git.
 
 ## Signing in (Phase 4)
 
