@@ -38,6 +38,7 @@ import org.junit.jupiter.api.Test;
 class JobServiceTest {
 
     private static final double CLOSED_FORM = 151397.8353530265;
+    private static final String OWNER = "user-1";
 
     /** Executor that queues tasks instead of running them; the test calls {@link #runAll()}. */
     static class ManualExecutor extends AbstractExecutorService {
@@ -129,21 +130,21 @@ class JobServiceTest {
 
     @Test
     void submitReturnsAQueuedJobBeforeAnythingRuns() {
-        JobResponse job = jobs.submit(eulerRequest(0.05));
+        JobResponse job = jobs.submit(OWNER, eulerRequest(0.05));
 
         assertEquals(JobStatus.QUEUED, job.status());
         assertEquals("euler-column-buckling", job.modelId());
         assertTrue(job.result() == null);
         assertEquals(1, executor.pending.size());
-        assertEquals(JobStatus.QUEUED, jobs.get(job.id()).status());
+        assertEquals(JobStatus.QUEUED, jobs.get(OWNER, job.id()).status());
     }
 
     @Test
     void jobCompletesWithTheClosedFormResult() {
-        JobResponse queued = jobs.submit(eulerRequest(0.05));
+        JobResponse queued = jobs.submit(OWNER, eulerRequest(0.05));
         executor.runAll();
 
-        JobResponse done = jobs.get(queued.id());
+        JobResponse done = jobs.get(OWNER, queued.id());
         assertEquals(JobStatus.DONE, done.status());
         assertEquals(CLOSED_FORM, done.result().summary().mean(), 1e-6);
         assertEquals(1000, done.result().samplesUsed());
@@ -158,10 +159,10 @@ class JobServiceTest {
     void jobWithNoValidSamplesEndsFailedWithAMessage() {
         // A negative diameter is accepted by the request check but is non-physical in the model,
         // so every sample is rejected and the engine reports it.
-        JobResponse queued = jobs.submit(eulerRequest(-0.05));
+        JobResponse queued = jobs.submit(OWNER, eulerRequest(-0.05));
         executor.runAll();
 
-        JobResponse failed = jobs.get(queued.id());
+        JobResponse failed = jobs.get(OWNER, queued.id());
         assertEquals(JobStatus.FAILED, failed.status());
         assertTrue(failed.errorMessage() != null && !failed.errorMessage().isBlank());
         assertTrue(failed.result() == null);
@@ -170,7 +171,7 @@ class JobServiceTest {
     @Test
     void unknownModelIsRejectedAndNothingIsStored() {
         SimulationRequest request = new SimulationRequest("nope", eulerRequest(0.05).inputs(), null, null, null);
-        assertThrows(ModelNotFoundException.class, () -> jobs.submit(request));
+        assertThrows(ModelNotFoundException.class, () -> jobs.submit(OWNER, request));
         assertEquals(0, store.count());
         assertEquals(0, executor.pending.size());
     }
@@ -181,13 +182,13 @@ class JobServiceTest {
         missing.remove("length");
         assertThrows(
                 InvalidSimulationRequestException.class,
-                () -> jobs.submit(new SimulationRequest("euler-column-buckling", missing, null, null, null)));
+                () -> jobs.submit(OWNER, new SimulationRequest("euler-column-buckling", missing, null, null, null)));
 
         Map<String, DistributionSpec> extra = new LinkedHashMap<>(eulerRequest(0.05).inputs());
         extra.put("temperature", constant(20.0));
         assertThrows(
                 InvalidSimulationRequestException.class,
-                () -> jobs.submit(new SimulationRequest("euler-column-buckling", extra, null, null, null)));
+                () -> jobs.submit(OWNER, new SimulationRequest("euler-column-buckling", extra, null, null, null)));
 
         assertEquals(0, store.count());
     }
@@ -195,7 +196,7 @@ class JobServiceTest {
     @Test
     void fullQueueMarksTheJobFailedAndReportsIt() {
         executor.rejecting = true;
-        assertThrows(JobQueueFullException.class, () -> jobs.submit(eulerRequest(0.05)));
+        assertThrows(JobQueueFullException.class, () -> jobs.submit(OWNER, eulerRequest(0.05)));
 
         assertEquals(1, store.count());
         assertEquals(JobStatus.FAILED, store.findByStatusIn(List.of(JobStatus.FAILED)).get(0).getStatus());
@@ -203,62 +204,90 @@ class JobServiceTest {
 
     @Test
     void unknownJobIdGivesNotFound() {
-        assertThrows(JobNotFoundException.class, () -> jobs.get("does-not-exist"));
+        assertThrows(JobNotFoundException.class, () -> jobs.get(OWNER, "does-not-exist"));
     }
 
     @Test
     void listingIsPaginatedNewestFirst() {
         List<String> ids = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
-            ids.add(jobs.submit(eulerRequest(0.05)).id());
+            ids.add(jobs.submit(OWNER, eulerRequest(0.05)).id());
         }
 
-        PageResult<JobResponse> first = jobs.list(null, 0, 2);
+        PageResult<JobResponse> first = jobs.list(OWNER, null, 0, 2);
         assertEquals(2, first.items().size());
         assertEquals(5, first.totalItems());
         assertEquals(3, first.totalPages());
         assertEquals(ids.get(4), first.items().get(0).id()); // newest first
         assertEquals(ids.get(3), first.items().get(1).id());
 
-        assertEquals(ids.get(2), jobs.list(null, 1, 2).items().get(0).id());
-        PageResult<JobResponse> last = jobs.list(null, 2, 2);
+        assertEquals(ids.get(2), jobs.list(OWNER, null, 1, 2).items().get(0).id());
+        PageResult<JobResponse> last = jobs.list(OWNER, null, 2, 2);
         assertEquals(1, last.items().size());
         assertEquals(ids.get(0), last.items().get(0).id());
-        assertEquals(0, jobs.list(null, 3, 2).items().size()); // past the end: empty, not an error
+        assertEquals(0, jobs.list(OWNER, null, 3, 2).items().size()); // past the end: empty, not an error
     }
 
     @Test
     void listingCanFilterByStatus() {
-        jobs.submit(eulerRequest(0.05));
-        jobs.submit(eulerRequest(0.05));
+        jobs.submit(OWNER, eulerRequest(0.05));
+        jobs.submit(OWNER, eulerRequest(0.05));
         executor.runAll();
-        jobs.submit(eulerRequest(0.05)); // stays QUEUED
+        jobs.submit(OWNER, eulerRequest(0.05)); // stays QUEUED
 
-        assertEquals(2, jobs.list(JobStatus.DONE, 0, 10).totalItems());
-        assertEquals(1, jobs.list(JobStatus.QUEUED, 0, 10).totalItems());
-        assertEquals(0, jobs.list(JobStatus.FAILED, 0, 10).totalItems());
-        assertEquals(3, jobs.list(null, 0, 10).totalItems());
+        assertEquals(2, jobs.list(OWNER, JobStatus.DONE, 0, 10).totalItems());
+        assertEquals(1, jobs.list(OWNER, JobStatus.QUEUED, 0, 10).totalItems());
+        assertEquals(0, jobs.list(OWNER, JobStatus.FAILED, 0, 10).totalItems());
+        assertEquals(3, jobs.list(OWNER, null, 0, 10).totalItems());
     }
 
     @Test
     void badPagingParametersAreRejected() {
-        assertThrows(InvalidSimulationRequestException.class, () -> jobs.list(null, -1, 10));
-        assertThrows(InvalidSimulationRequestException.class, () -> jobs.list(null, 0, 0));
-        assertThrows(InvalidSimulationRequestException.class, () -> jobs.list(null, 0, 101));
+        assertThrows(InvalidSimulationRequestException.class, () -> jobs.list(OWNER, null, -1, 10));
+        assertThrows(InvalidSimulationRequestException.class, () -> jobs.list(OWNER, null, 0, 0));
+        assertThrows(InvalidSimulationRequestException.class, () -> jobs.list(OWNER, null, 0, 101));
     }
 
     @Test
     void interruptedJobsAreMarkedFailedAtStartUp() {
-        JobResponse queued = jobs.submit(eulerRequest(0.05)); // never executed: simulates a crash
-        JobResponse finished = jobs.submit(eulerRequest(0.05));
+        JobResponse queued = jobs.submit(OWNER, eulerRequest(0.05)); // never executed: simulates a crash
+        JobResponse finished = jobs.submit(OWNER, eulerRequest(0.05));
         // Run only the second job.
         executor.pending.get(1).run();
         executor.pending.clear();
 
         jobs.failInterruptedJobs();
 
-        assertEquals(JobStatus.FAILED, jobs.get(queued.id()).status());
-        assertEquals("Interrupted by an application restart", jobs.get(queued.id()).errorMessage());
-        assertEquals(JobStatus.DONE, jobs.get(finished.id()).status());
+        assertEquals(JobStatus.FAILED, jobs.get(OWNER, queued.id()).status());
+        assertEquals("Interrupted by an application restart", jobs.get(OWNER, queued.id()).errorMessage());
+        assertEquals(JobStatus.DONE, jobs.get(OWNER, finished.id()).status());
+    }
+
+    @Test
+    void eachUserSeesOnlyTheirOwnJobs() {
+        JobResponse alices = jobs.submit("alice", eulerRequest(0.05));
+        JobResponse bobs = jobs.submit("bob", eulerRequest(0.05));
+
+        assertEquals(1, jobs.list("alice", null, 0, 10).totalItems());
+        assertEquals(alices.id(), jobs.list("alice", null, 0, 10).items().get(0).id());
+        assertEquals(1, jobs.list("bob", null, 0, 10).totalItems());
+        assertEquals(bobs.id(), jobs.get("bob", bobs.id()).id());
+    }
+
+    @Test
+    void anotherUsersJobLooksLikeItDoesNotExist() {
+        JobResponse alices = jobs.submit("alice", eulerRequest(0.05));
+
+        // Same exception as for an id that does not exist: the caller learns nothing.
+        assertThrows(JobNotFoundException.class, () -> jobs.get("bob", alices.id()));
+    }
+
+    @Test
+    void jobsWithoutAnOwnerAreVisibleToNobody() {
+        // A job saved before Phase 4 has no owner.
+        store.save(new SimulationJob("old-job", null, "euler-column-buckling", "{}", Instant.EPOCH));
+
+        assertThrows(JobNotFoundException.class, () -> jobs.get("alice", "old-job"));
+        assertEquals(0, jobs.list("alice", null, 0, 10).totalItems());
     }
 }

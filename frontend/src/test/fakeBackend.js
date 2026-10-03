@@ -61,6 +61,16 @@ export function makeJob(n, overrides = {}) {
   };
 }
 
+/** The token the fake server hands out; sessionFor() below builds the matching saved session. */
+function tokenFor(username) {
+  return { accessToken: `fake-token-${username}`, tokenType: 'Bearer', expiresInSeconds: 3600, username };
+}
+
+/** Puts a signed-in user into sessionStorage, as if they had logged in earlier. */
+export function signInAs(username = 'alice') {
+  sessionStorage.setItem('uqlab.session', JSON.stringify({ accessToken: `fake-token-${username}`, username }));
+}
+
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
@@ -71,10 +81,21 @@ function json(body, status = 200) {
  *   backend.requests      every request received: { method, path, search, body }
  *   backend.down = true   makes every call fail like an unreachable server
  *   backend.rejectNext    set to { status, body } to make the next job submission fail
+ *   backend.users         known accounts { username: password }
+ *   backend.expireTokens  when true, protected calls answer 401
  *   backend.advance       when true, a job moves QUEUED -> RUNNING -> DONE each time it is fetched
  */
-export function installFakeBackend({ jobs = [] } = {}) {
-  const backend = { jobs: [...jobs], requests: [], down: false, rejectNext: null, advance: true, counter: 1000 };
+export function installFakeBackend({ jobs = [], users = { alice: 'password123' } } = {}) {
+  const backend = {
+    jobs: [...jobs],
+    users: { ...users }, // username -> password
+    requests: [],
+    down: false,
+    rejectNext: null,
+    advance: true,
+    counter: 1000,
+    expireTokens: false, // when true, every token is refused with 401, like an expired one
+  };
 
   globalThis.fetch = vi.fn(async (url, options = {}) => {
     if (backend.down) throw new TypeError('Failed to fetch');
@@ -85,7 +106,33 @@ export function installFakeBackend({ jobs = [] } = {}) {
       path: u.pathname,
       search: u.search,
       body: options.body ? JSON.parse(options.body) : null,
+      authorization: options.headers?.Authorization ?? null,
     });
+
+    // --- accounts (open routes) ---
+    if (method === 'POST' && u.pathname === '/api/auth/register') {
+      const { username, password } = JSON.parse(options.body);
+      const name = username.trim().toLowerCase();
+      if (backend.users[name] !== undefined)
+        return json({ title: 'Username already taken', detail: `The username '${name}' is already taken` }, 409);
+      backend.users[name] = password;
+      return json(tokenFor(name), 201);
+    }
+    if (method === 'POST' && u.pathname === '/api/auth/login') {
+      const { username, password } = JSON.parse(options.body);
+      const name = username.trim().toLowerCase();
+      if (backend.users[name] === undefined || backend.users[name] !== password)
+        return json({ title: 'Sign-in failed', detail: 'Invalid username or password' }, 401);
+      return json(tokenFor(name), 200);
+    }
+
+    // --- everything else needs a valid token ---
+    const bearer = (options.headers?.Authorization ?? '').match(/^Bearer fake-token-(.+)$/);
+    if (backend.expireTokens || !bearer || backend.users[bearer[1]] === undefined)
+      return json({ title: 'Unauthorized', detail: 'Authentication is required' }, 401);
+
+    if (method === 'GET' && u.pathname === '/api/auth/me')
+      return json({ id: `id-${bearer[1]}`, username: bearer[1] });
 
     if (method === 'GET' && u.pathname === '/api/models') return json(MODELS);
 

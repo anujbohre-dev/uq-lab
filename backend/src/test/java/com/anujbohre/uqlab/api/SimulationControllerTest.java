@@ -2,6 +2,7 @@ package com.anujbohre.uqlab.api;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -13,6 +14,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 /** Starts the whole application context and calls the API through MockMvc (no real network). */
 @SpringBootTest
@@ -20,6 +22,9 @@ import org.springframework.test.web.servlet.MockMvc;
 class SimulationControllerTest {
 
     private static final double CLOSED_FORM = 151397.8353530265;
+
+    /** Makes a request look as if user "alice" had signed in (the real token path is tested in AuthControllerTest). */
+    private static final RequestPostProcessor ALICE = jwt().jwt(token -> token.subject("alice"));
 
     @Autowired
     private MockMvc mvc;
@@ -40,7 +45,7 @@ class SimulationControllerTest {
 
     @Test
     void listsTheThreeModels() throws Exception {
-        mvc.perform(get("/api/models"))
+        mvc.perform(get("/api/models").with(ALICE))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(3)))
                 .andExpect(jsonPath("$[?(@.id == 'euler-column-buckling')]", hasSize(1)))
@@ -50,7 +55,7 @@ class SimulationControllerTest {
 
     @Test
     void zeroSpreadRunReturnsTheClosedFormValue() throws Exception {
-        mvc.perform(post("/api/simulations").contentType(MediaType.APPLICATION_JSON).content(CERTAIN_INPUTS))
+        mvc.perform(post("/api/simulations").with(ALICE).contentType(MediaType.APPLICATION_JSON).content(CERTAIN_INPUTS))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.samplesUsed").value(1000))
                 .andExpect(jsonPath("$.seed").value(1))
@@ -75,7 +80,7 @@ class SimulationControllerTest {
                   }
                 }
                 """;
-        mvc.perform(post("/api/simulations").contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post("/api/simulations").with(ALICE).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.summary.mean").value(closeTo(CLOSED_FORM, 6000.0)))
                 .andExpect(jsonPath("$.histogram.counts", hasSize(10)))
@@ -85,7 +90,7 @@ class SimulationControllerTest {
     @Test
     void omittedSeedIsChosenAndReturned() throws Exception {
         String body = CERTAIN_INPUTS.replace("\"seed\": 1,", "");
-        mvc.perform(post("/api/simulations").contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post("/api/simulations").with(ALICE).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.seed").isNumber());
     }
@@ -93,7 +98,7 @@ class SimulationControllerTest {
     @Test
     void tooFewSamplesIsRejectedWithFieldError() throws Exception {
         String body = CERTAIN_INPUTS.replace("\"samples\": 1000", "\"samples\": 5");
-        mvc.perform(post("/api/simulations").contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post("/api/simulations").with(ALICE).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors.samples").exists());
     }
@@ -101,7 +106,7 @@ class SimulationControllerTest {
     @Test
     void unknownModelGivesNotFound() throws Exception {
         String body = CERTAIN_INPUTS.replace("euler-column-buckling", "no-such-model");
-        mvc.perform(post("/api/simulations").contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post("/api/simulations").with(ALICE).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isNotFound());
     }
 
@@ -109,7 +114,7 @@ class SimulationControllerTest {
     void missingDistributionParameterIsABadRequest() throws Exception {
         String body = CERTAIN_INPUTS.replace(
                 "{ \"type\": \"CONSTANT\", \"value\": 0.05 }", "{ \"type\": \"NORMAL\", \"mean\": 0.05 }");
-        mvc.perform(post("/api/simulations").contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post("/api/simulations").with(ALICE).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest());
     }
 
@@ -117,27 +122,27 @@ class SimulationControllerTest {
     void missingInputIsABadRequest() throws Exception {
         String body = CERTAIN_INPUTS.replace(
                 "\"diameter\":              { \"type\": \"CONSTANT\", \"value\": 0.05 },", "");
-        mvc.perform(post("/api/simulations").contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post("/api/simulations").with(ALICE).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void malformedJsonIsABadRequest() throws Exception {
-        mvc.perform(post("/api/simulations").contentType(MediaType.APPLICATION_JSON).content("{ not json"))
+        mvc.perform(post("/api/simulations").with(ALICE).contentType(MediaType.APPLICATION_JSON).content("{ not json"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void unknownDistributionTypeIsABadRequest() throws Exception {
         String body = CERTAIN_INPUTS.replace("\"type\": \"CONSTANT\", \"value\": 2.0", "\"type\": \"WEIBULL\", \"value\": 2.0");
-        mvc.perform(post("/api/simulations").contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post("/api/simulations").with(ALICE).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void allSamplesNonPhysicalGivesUnprocessableEntity() throws Exception {
         String body = CERTAIN_INPUTS.replace("\"value\": 2.0", "\"value\": -2.0");
-        mvc.perform(post("/api/simulations").contentType(MediaType.APPLICATION_JSON).content(body))
+        mvc.perform(post("/api/simulations").with(ALICE).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isUnprocessableEntity());
     }
 }

@@ -29,11 +29,17 @@ class JpaJobStore implements JobStore {
     }
 
     @Override
-    public PageResult<SimulationJob> findPage(JobStatus status, int page, int size) {
+    public Optional<SimulationJob> findByIdAndOwner(String id, String ownerId) {
+        return repository.findByIdAndOwnerId(id, ownerId);
+    }
+
+    @Override
+    public PageResult<SimulationJob> findPage(String ownerId, JobStatus status, int page, int size) {
         // The id is a tie-breaker so that paging is stable when two jobs share a timestamp.
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
-        Page<SimulationJob> result =
-                status == null ? repository.findAll(pageable) : repository.findByStatus(status, pageable);
+        Page<SimulationJob> result = status == null
+                ? repository.findByOwnerId(ownerId, pageable)
+                : repository.findByOwnerIdAndStatus(ownerId, status, pageable);
         return new PageResult<>(
                 result.getContent(), page, size, result.getTotalElements(), result.getTotalPages());
     }

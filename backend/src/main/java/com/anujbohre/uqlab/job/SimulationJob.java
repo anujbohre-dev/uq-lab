@@ -22,6 +22,13 @@ public class SimulationJob {
     @Column(length = 36)
     private String id;
 
+    /**
+     * Id of the user who submitted the job. Nullable only because jobs created before Phase 4 have
+     * no owner; those jobs are not visible to anyone.
+     */
+    @Column(length = 36)
+    private String ownerId;
+
     @Column(nullable = false, length = 100)
     private String modelId;
 
@@ -48,8 +55,9 @@ public class SimulationJob {
     /** Required by JPA. */
     protected SimulationJob() {}
 
-    public SimulationJob(String id, String modelId, String requestJson, Instant createdAt) {
+    public SimulationJob(String id, String ownerId, String modelId, String requestJson, Instant createdAt) {
         this.id = id;
+        this.ownerId = ownerId;
         this.modelId = modelId;
         this.requestJson = requestJson;
         this.createdAt = createdAt;
@@ -82,6 +90,10 @@ public class SimulationJob {
 
     public String getId() {
         return id;
+    }
+
+    public String getOwnerId() {
+        return ownerId;
     }
 
     public String getModelId() {

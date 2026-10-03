@@ -24,10 +24,16 @@ class InMemoryJobStore implements JobStore {
     }
 
     @Override
-    public PageResult<SimulationJob> findPage(JobStatus status, int page, int size) {
+    public Optional<SimulationJob> findByIdAndOwner(String id, String ownerId) {
+        return findById(id).filter(j -> ownerId.equals(j.getOwnerId()));
+    }
+
+    @Override
+    public PageResult<SimulationJob> findPage(String ownerId, JobStatus status, int page, int size) {
         List<SimulationJob> matching = new ArrayList<>();
         for (int i = jobs.size() - 1; i >= 0; i--) { // newest first
-            if (status == null || jobs.get(i).getStatus() == status) {
+            boolean mine = ownerId.equals(jobs.get(i).getOwnerId());
+            if (mine && (status == null || jobs.get(i).getStatus() == status)) {
                 matching.add(jobs.get(i));
             }
         }

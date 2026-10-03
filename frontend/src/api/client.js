@@ -17,10 +17,25 @@ export class ApiError extends Error {
   }
 }
 
-async function call(path, options) {
+// The current login token. App sets it after sign-in and clears it on log out.
+let authToken = null;
+// Called when the server answers 401 to a request that carried a token (the token has expired).
+let unauthorizedHandler = null;
+
+export function setAuthToken(token) {
+  authToken = token || null;
+}
+
+export function setUnauthorizedHandler(handler) {
+  unauthorizedHandler = handler;
+}
+
+async function call(path, options = {}) {
+  const headers = { ...options.headers };
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
   let response;
   try {
-    response = await fetch(BASE + path, options);
+    response = await fetch(BASE + path, { ...options, headers });
   } catch {
     throw new ApiError({
       status: 0,
@@ -33,6 +48,8 @@ async function call(path, options) {
   const body = isJson ? await response.json() : null;
 
   if (!response.ok) {
+    // A token was sent but refused: it has expired or is invalid. Sign the user out.
+    if (response.status === 401 && authToken && unauthorizedHandler) unauthorizedHandler();
     throw new ApiError({
       status: response.status,
       title: body?.title,
@@ -60,3 +77,22 @@ export function listJobs({ status = '', page = 0, size = 10 } = {}) {
   if (status) params.set('status', status);
   return call(`/api/jobs?${params}`);
 }
+
+/** Creates an account and signs in. Resolves to { accessToken, tokenType, expiresInSeconds, username }. */
+export const register = (username, password) =>
+  call('/api/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+
+/** Signs in. Same result shape as register. Throws ApiError with status 401 for bad credentials. */
+export const login = (username, password) =>
+  call('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+
+/** The signed-in user, as the server sees the token. */
+export const getMe = () => call('/api/auth/me');

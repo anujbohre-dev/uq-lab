@@ -49,13 +49,16 @@ public class JobService {
         this.clock = clock;
     }
 
-    /** Validates the request, stores a QUEUED job and schedules it. Returns before the run starts. */
-    public JobResponse submit(SimulationRequest request) {
+    /**
+     * Validates the request, stores a QUEUED job owned by {@code ownerId} and schedules it.
+     * Returns before the run starts.
+     */
+    public JobResponse submit(String ownerId, SimulationRequest request) {
         // Bad requests fail now with 400/404 instead of becoming FAILED jobs later.
         simulationService.validate(request);
 
         SimulationJob job = new SimulationJob(
-                UUID.randomUUID().toString(), request.modelId(), toJson(request), clock.instant());
+                UUID.randomUUID().toString(), ownerId, request.modelId(), toJson(request), clock.instant());
         store.save(job);
         JobResponse queued = toResponse(job); // built before the worker can change anything
 
@@ -69,19 +72,25 @@ public class JobService {
         return queued;
     }
 
-    public JobResponse get(String id) {
-        return store.findById(id).map(this::toResponse).orElseThrow(() -> new JobNotFoundException(id));
+    /**
+     * Returns one of the caller's jobs. Someone else's job gives the same "not found" as a job that
+     * does not exist, so the response never reveals which ids are in use.
+     */
+    public JobResponse get(String ownerId, String id) {
+        return store.findByIdAndOwner(id, ownerId)
+                .map(this::toResponse)
+                .orElseThrow(() -> new JobNotFoundException(id));
     }
 
-    /** Lists jobs, newest first. Pages are numbered from 0; size is 1 to 100. */
-    public PageResult<JobResponse> list(JobStatus status, int page, int size) {
+    /** Lists the caller's jobs, newest first. Pages are numbered from 0; size is 1 to 100. */
+    public PageResult<JobResponse> list(String ownerId, JobStatus status, int page, int size) {
         if (page < 0) {
             throw new InvalidSimulationRequestException("page must be 0 or greater");
         }
         if (size < 1 || size > MAX_PAGE_SIZE) {
             throw new InvalidSimulationRequestException("size must be between 1 and " + MAX_PAGE_SIZE);
         }
-        return store.findPage(status, page, size).map(this::toResponse);
+        return store.findPage(ownerId, status, page, size).map(this::toResponse);
     }
 
     /** Runs on a worker thread. Never throws: any failure is recorded on the job. */

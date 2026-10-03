@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, getJob, listJobs, submitJob } from './client.js';
+import { ApiError, getJob, listJobs, login, register, setAuthToken, setUnauthorizedHandler, submitJob } from './client.js';
 
 function respond(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -7,6 +7,8 @@ function respond(body, status = 200) {
 
 beforeEach(() => {
   globalThis.fetch = vi.fn();
+  setAuthToken(null);
+  setUnauthorizedHandler(null);
 });
 
 describe('api client', () => {
@@ -58,5 +60,33 @@ describe('api client', () => {
     const error = await getJob('x').catch((e) => e);
     expect(error.status).toBe(502);
     expect(error.message).toBe('Request failed with status 502');
+  });
+  it('sends the token only after one has been set', async () => {
+    fetch.mockImplementation(async () => respond({}));
+    await getJob('a');
+    expect(fetch.mock.calls[0][1].headers.Authorization).toBeUndefined();
+    setAuthToken('abc');
+    await getJob('a');
+    expect(fetch.mock.calls[1][1].headers.Authorization).toBe('Bearer abc');
+  });
+
+  it('posts register and login credentials as JSON', async () => {
+    fetch.mockImplementation(async () => respond({ accessToken: 't', username: 'u' }, 201));
+    await register('u', 'password1');
+    await login('u', 'password1');
+    expect(fetch.mock.calls[0][0]).toBe('/api/auth/register');
+    expect(fetch.mock.calls[1][0]).toBe('/api/auth/login');
+    expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({ username: 'u', password: 'password1' });
+  });
+
+  it('calls the unauthorized handler on 401 only when a token was sent', async () => {
+    let calls = 0;
+    setUnauthorizedHandler(() => calls++);
+    fetch.mockImplementation(async () => respond({ title: 'Sign-in failed', detail: 'Invalid username or password' }, 401));
+    await expect(login('u', 'bad')).rejects.toBeInstanceOf(ApiError);
+    expect(calls).toBe(0);
+    setAuthToken('abc');
+    await expect(getJob('a')).rejects.toMatchObject({ status: 401 });
+    expect(calls).toBe(1);
   });
 });

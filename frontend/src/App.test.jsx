@@ -2,11 +2,13 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App.jsx';
-import { installFakeBackend, makeJob, makeResult } from './test/fakeBackend.js';
+import { installFakeBackend, makeJob, makeResult, signInAs } from './test/fakeBackend.js';
 
 const posts = (backend) => backend.requests.filter((r) => r.method === 'POST');
 
 describe('App', () => {
+  beforeEach(() => signInAs('alice'));
+
   afterEach(() => {
     vi.useRealTimers();
   });

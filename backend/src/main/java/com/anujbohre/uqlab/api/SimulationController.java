@@ -4,6 +4,7 @@ import com.anujbohre.uqlab.api.dto.ModelInfo;
 import com.anujbohre.uqlab.api.dto.SimulationRequest;
 import com.anujbohre.uqlab.api.dto.SimulationResponse;
 import com.anujbohre.uqlab.service.SimulationService;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** HTTP layer: receives requests, hands them to the service, returns JSON. No logic here. */
 @RestController
 @RequestMapping("/api")
+@SecurityRequirement(name = "bearerAuth")
 public class SimulationController {
 
     private final SimulationService service;

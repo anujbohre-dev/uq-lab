@@ -17,7 +17,7 @@
     <artifactId>uq-lab-backend</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <name>uq-lab-backend</name>
-    <description>Monte Carlo Uncertainty Lab - backend (Phase 2)</description>
+    <description>Monte Carlo Uncertainty Lab - backend (Phase 4)</description>
 
     <properties>
         <!-- Java language level. If Maven reports that this Java version is unsupported by the
@@ -58,6 +58,22 @@
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>${springdoc.version}</version>
+        </dependency>
+        <!-- Spring Security: password hashing, request filters, and the "who may call what" rules -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <!-- Reads and verifies JWT login tokens (Spring's own support, built on Nimbus JOSE) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+        <!-- Test helpers for signed-in requests, e.g. jwt() -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
         </dependency>
         <!-- JUnit 5, AssertJ, Hamcrest, Spring Test (MockMvc) -->
         <dependency>

@@ -1,5 +1,8 @@
 package com.anujbohre.uqlab.api;
 
+import com.anujbohre.uqlab.auth.InvalidCredentialsException;
+import com.anujbohre.uqlab.auth.InvalidRegistrationException;
+import com.anujbohre.uqlab.auth.UsernameTakenException;
 import com.anujbohre.uqlab.domain.montecarlo.NoValidSamplesException;
 import com.anujbohre.uqlab.job.JobNotFoundException;
 import com.anujbohre.uqlab.job.JobQueueFullException;
@@ -70,6 +73,29 @@ public class ApiExceptionHandler {
     public ProblemDetail onQueueFull(JobQueueFullException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
         problem.setTitle("Job queue full");
+        return problem;
+    }
+
+    /** Registration with a name that already exists. */
+    @ExceptionHandler(UsernameTakenException.class)
+    public ProblemDetail onUsernameTaken(UsernameTakenException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Username already taken");
+        return problem;
+    }
+
+    /** Wrong username or password; the same message for both, on purpose. */
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ProblemDetail onInvalidCredentials(InvalidCredentialsException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());
+        problem.setTitle("Sign-in failed");
+        return problem;
+    }
+
+    @ExceptionHandler(InvalidRegistrationException.class)
+    public ProblemDetail onInvalidRegistration(InvalidRegistrationException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        problem.setTitle("Invalid registration");
         return problem;
     }
 }

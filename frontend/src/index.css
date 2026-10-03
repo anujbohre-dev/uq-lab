@@ -149,3 +149,14 @@ tr.selected { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 details { margin-top: 14px; }
 pre { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; overflow: auto; font-size: 0.8rem; }
 code { background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+
+/* Sign in and header */
+.auth-card { max-width: 420px; margin: 0 auto; }
+.auth-card form { display: flex; flex-direction: column; gap: 6px; }
+.auth-card label { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.auth-card .primary { margin-top: 12px; }
+.tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.tabs button { flex: 1; }
+.tabs button[aria-selected='true'] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+.top-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.user-box { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }

@@ -14,16 +14,16 @@ standard deviation, percentiles and a histogram of the load.
 |-------|---------|-------|
 | 1 | Backend core: Euler model, distributions, seeded Monte Carlo, REST endpoint, tests | done |
 | 2 | Asynchronous jobs, job status, persistence (JPA + H2), pagination, two more models | done |
-| 3 | React frontend: run form, jobs list with live status, result view with histogram | **this version** |
-| 4 | Authentication (Spring Security, JWT) | planned |
+| 3 | React frontend: run form, jobs list with live status, result view with histogram | done |
+| 4 | Authentication: register, sign in, JWT, each user sees only their own jobs | **this version** |
 | 5 | PostgreSQL and Flyway migrations | planned |
 | 6 | Docker Compose and GitHub Actions CI | planned |
 | 7 | Documentation and demonstration | planned |
 
-## Tech stack (Phase 3)
+## Tech stack (Phase 4)
 
 Backend: Java 25, Spring Boot 3.5, Maven, Jakarta Bean Validation, Spring Data JPA (Hibernate) with an H2 file database,
-springdoc-openapi (Swagger UI), JUnit 5, MockMvc and Awaitility.
+Spring Security with JWT (HS256, via Spring's own Nimbus support) and BCrypt, springdoc-openapi (Swagger UI), JUnit 5, MockMvc and Awaitility.
 
 Frontend: React 19, Vite 8 (development server and build), Vitest and Testing Library. The histogram is drawn as plain SVG, with no chart library.
 
@@ -40,7 +40,7 @@ Frontend: React 19, Vite 8 (development server and build), Vitest and Testing Li
 
 If Maven reports that Java 25 is not supported by this Spring Boot version, change `<java.version>25</java.version>` to `21` in `backend/pom.xml` and reload Maven. Nothing else needs to change.
 
-## Running the web page (Phase 3)
+## Running the web page (Phase 4)
 
 1. Start the backend first (see above); it must be listening on port 8080.
 2. Open PowerShell and run:
@@ -51,18 +51,28 @@ npm install
 npm run dev
 ```
 
-3. Open <http://localhost:5173>. The first `npm install` needs internet and takes about a minute.
+3. Open <http://localhost:5173>. You see a sign-in page: choose **Create account**, pick a username and a password of at least 8 characters, and you are signed in. The first `npm install` needs internet and takes about a minute.
 4. Choose a model, adjust the numbers if you wish, and press **Run simulation**. The job appears in the list, changes from Queued to Running to Done by itself, and the result view shows the statistics and the histogram.
 5. Stop the page server with Ctrl+C.
 
 While `npm run dev` runs, every URL that starts with `/api` is forwarded to port 8080 (see `frontend/vite.config.js`), so the browser talks to one address and the backend needs no CORS settings.
 
-Frontend tests: `npm test` inside the `frontend` folder. Expected: 34 tests pass.
+Frontend tests: `npm test` inside the `frontend` folder. Expected: 50 tests pass.
 
 ## Running the tests
 
-Right-click `backend/src/test/java` and choose **Run 'All Tests'**. Expected: 66 tests pass
-(36 on the calculation core and models, 11 on the job service, 19 on the HTTP API).
+Right-click `backend/src/test/java` and choose **Run 'All Tests'**. Expected: 94 tests pass
+(36 on the calculation core and models, 14 on the job service, 21 on the job and simulation API, 23 on login and security).
+
+## Signing in (Phase 4)
+
+- `POST /api/auth/register` with `{"username","password"}` creates an account and returns a token (`201`); `409` if the name is taken.
+- `POST /api/auth/login` returns a token (`200`); `401 Invalid username or password` for a wrong password or unknown user (the same message for both).
+- `GET /api/auth/me` returns the signed-in user.
+- Every other `/api` call needs the header `Authorization: Bearer <token>`. In Swagger UI use the **Authorize** button and paste the `accessToken`.
+- Each user sees only their own jobs; another user's job answers `404`. Jobs created before Phase 4 have no owner and are visible to nobody.
+- Tokens last 60 minutes (`uqlab.security.token-ttl-minutes`). There are no refresh tokens: after expiry the user signs in again.
+- **Signing secret.** Set the environment variable `UQLAB_JWT_SECRET` (at least 32 characters) to keep logins valid across restarts. If it is not set, a random key is used and everyone is signed out whenever the server restarts; this is fine for local use. Never commit the secret to Git.
 
 ## API
 
@@ -139,7 +149,7 @@ and one `@Bean` in `SimulationConfig`.
 - The Euler formula is valid only for slender columns; the model does not check slenderness.
 - The job queue lives in memory: a restart fails unfinished jobs rather than resuming them. A multi-server deployment would need a shared queue.
 - Two jobs run at a time and up to 100 wait; beyond that the API answers `503`.
-- Anyone can read every job: there is no authentication until Phase 4.
+- Tokens are kept in `sessionStorage`, which scripts on the page can read; an httpOnly cookie would resist cross-site scripting better. There are no refresh tokens, no password reset, no e-mail check and no login rate limit.
 - The page checks values before sending them, but the backend repeats every check; the browser is never trusted.
 - The page asks the server for news every two seconds while a job is unfinished (polling). Push updates (WebSocket or server-sent events) would remove the repeated requests.
 - Inputs are sampled independently; correlated inputs are not supported.

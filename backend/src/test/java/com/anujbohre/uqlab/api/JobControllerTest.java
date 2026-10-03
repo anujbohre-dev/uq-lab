@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -18,6 +19,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.MvcResult;
 
 /**
@@ -29,6 +31,11 @@ import org.springframework.test.web.servlet.MvcResult;
 class JobControllerTest {
 
     private static final double CLOSED_FORM = 151397.8353530265;
+
+    /** Makes a request look as if user "alice" had signed in (the real token path is tested in AuthControllerTest). */
+    private static final RequestPostProcessor ALICE = jwt().jwt(token -> token.subject("alice"));
+
+    private static final RequestPostProcessor BOB = jwt().jwt(token -> token.subject("bob"));
 
     @Autowired
     private MockMvc mvc;
@@ -51,7 +58,7 @@ class JobControllerTest {
 
     /** Submits a job and returns the URL from the Location header. */
     private String submit(String body) throws Exception {
-        MvcResult result = mvc.perform(post("/api/jobs").contentType(MediaType.APPLICATION_JSON).content(body))
+        MvcResult result = mvc.perform(post("/api/jobs").with(ALICE).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isAccepted())
                 .andExpect(header().exists("Location"))
                 .andExpect(jsonPath("$.id").value(notNullValue()))
@@ -62,7 +69,7 @@ class JobControllerTest {
 
     private void awaitStatus(String location, String expected) {
         await().atMost(Duration.ofSeconds(15)).pollInterval(Duration.ofMillis(50)).untilAsserted(() ->
-                mvc.perform(get(location)).andExpect(jsonPath("$.status").value(expected)));
+                mvc.perform(get(location).with(ALICE)).andExpect(jsonPath("$.status").value(expected)));
     }
 
     @Test
@@ -71,7 +78,7 @@ class JobControllerTest {
 
         awaitStatus(location, "DONE");
 
-        mvc.perform(get(location))
+        mvc.perform(get(location).with(ALICE))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.samplesUsed").value(1000))
                 .andExpect(jsonPath("$.result.summary.mean").value(closeTo(CLOSED_FORM, 1e-6)))
@@ -86,7 +93,7 @@ class JobControllerTest {
 
         awaitStatus(location, "FAILED");
 
-        mvc.perform(get(location))
+        mvc.perform(get(location).with(ALICE))
                 .andExpect(jsonPath("$.errorMessage").value(notNullValue()))
                 .andExpect(jsonPath("$.result").doesNotExist());
     }
@@ -108,19 +115,19 @@ class JobControllerTest {
 
         awaitStatus(location, "DONE");
 
-        mvc.perform(get(location))
+        mvc.perform(get(location).with(ALICE))
                 .andExpect(jsonPath("$.result.outputUnit").value("Hz"))
                 .andExpect(jsonPath("$.result.summary.mean").value(closeTo(5.032921210448704, 1e-9)));
     }
 
     @Test
     void unknownJobIdGivesNotFound() throws Exception {
-        mvc.perform(get("/api/jobs/does-not-exist")).andExpect(status().isNotFound());
+        mvc.perform(get("/api/jobs/does-not-exist").with(ALICE)).andExpect(status().isNotFound());
     }
 
     @Test
     void invalidBodyIsRejectedImmediately() throws Exception {
-        mvc.perform(post("/api/jobs")
+        mvc.perform(post("/api/jobs").with(ALICE)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"modelId\":\"euler-column-buckling\",\"samples\":5,\"inputs\":{}}"))
                 .andExpect(status().isBadRequest())
@@ -129,7 +136,7 @@ class JobControllerTest {
 
     @Test
     void unknownModelIsRejectedImmediately() throws Exception {
-        mvc.perform(post("/api/jobs")
+        mvc.perform(post("/api/jobs").with(ALICE)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(eulerBody(0.05).replace("euler-column-buckling", "nope")))
                 .andExpect(status().isNotFound());
@@ -141,7 +148,7 @@ class JobControllerTest {
             awaitStatus(submit(eulerBody(0.05)), "DONE");
         }
 
-        mvc.perform(get("/api/jobs").param("size", "2"))
+        mvc.perform(get("/api/jobs").with(ALICE).param("size", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items", hasSize(2)))
                 .andExpect(jsonPath("$.page").value(0))
@@ -149,16 +156,36 @@ class JobControllerTest {
                 .andExpect(jsonPath("$.totalItems").value(greaterThanOrEqualTo(3)))
                 .andExpect(jsonPath("$.totalPages").value(greaterThanOrEqualTo(2)));
 
-        mvc.perform(get("/api/jobs").param("status", "DONE").param("size", "100"))
+        mvc.perform(get("/api/jobs").with(ALICE).param("status", "DONE").param("size", "100"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].status").value("DONE"));
     }
 
     @Test
     void badPagingParametersGiveBadRequest() throws Exception {
-        mvc.perform(get("/api/jobs").param("size", "0")).andExpect(status().isBadRequest());
-        mvc.perform(get("/api/jobs").param("size", "101")).andExpect(status().isBadRequest());
-        mvc.perform(get("/api/jobs").param("page", "-1")).andExpect(status().isBadRequest());
-        mvc.perform(get("/api/jobs").param("status", "BOGUS")).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/jobs").with(ALICE).param("size", "0")).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/jobs").with(ALICE).param("size", "101")).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/jobs").with(ALICE).param("page", "-1")).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/jobs").with(ALICE).param("status", "BOGUS")).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void anotherUserCannotReadMyJob() throws Exception {
+        String location = submit(eulerBody(0.05));
+        awaitStatus(location, "DONE");
+
+        // 404, not 403: a stranger must not learn that the id exists.
+        mvc.perform(get(location).with(BOB)).andExpect(status().isNotFound());
+        mvc.perform(get(location).with(ALICE)).andExpect(status().isOk());
+    }
+
+    @Test
+    void listingShowsOnlyMyOwnJobs() throws Exception {
+        awaitStatus(submit(eulerBody(0.05)), "DONE"); // submitted by alice
+
+        mvc.perform(get("/api/jobs").with(BOB).param("size", "100"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalItems").value(0))
+                .andExpect(jsonPath("$.items", hasSize(0)));
     }
 }
