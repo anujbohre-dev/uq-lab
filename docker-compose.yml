@@ -1,0 +1,42 @@
+# Runs the whole system with one command:  docker compose up --build
+# Before the first run, copy .env.example to .env and set the two values in it.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: uqlab
+      POSTGRES_USER: uqlab
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the .env file}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uqlab -d uqlab"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      SPRING_PROFILES_ACTIVE: postgres
+      UQLAB_DB_HOST: postgres
+      UQLAB_DB_NAME: uqlab
+      UQLAB_DB_USER: uqlab
+      UQLAB_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      UQLAB_JWT_SECRET: ${UQLAB_JWT_SECRET:?Set UQLAB_JWT_SECRET (32+ characters) in the .env file}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+volumes:
+  pgdata:

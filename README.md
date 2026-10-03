@@ -16,8 +16,8 @@ standard deviation, percentiles and a histogram of the load.
 | 2 | Asynchronous jobs, job status, persistence (JPA + H2), pagination, two more models | done |
 | 3 | React frontend: run form, jobs list with live status, result view with histogram | done |
 | 4 | Authentication: register, sign in, JWT, each user sees only their own jobs | done |
-| 5 | PostgreSQL and Flyway migrations (optional "postgres" profile; H2 stays the default) | **this version** |
-| 6 | Docker Compose and GitHub Actions CI | planned |
+| 5 | PostgreSQL and Flyway migrations (optional "postgres" profile; H2 stays the default) | done |
+| 6 | Docker Compose and GitHub Actions CI | **this version** |
 | 7 | Documentation and demonstration | planned |
 
 ## Tech stack (Phase 5)
@@ -63,6 +63,19 @@ Frontend tests: `npm test` inside the `frontend` folder. Expected: 50 tests pass
 
 Right-click `backend/src/test/java` and choose **Run 'All Tests'**. Expected: 98 tests pass
 (36 on the calculation core and models, 14 on the job service, 21 on the job and simulation API, 23 on login and security, 4 guarding the database migration scripts).
+
+## Running everything with Docker (Phase 6)
+
+Requires Docker Desktop to be running. This starts PostgreSQL, the backend and the web page together.
+
+1. In the project root, copy `.env.example` to `.env` and set both values in it (a database password and a login-token secret of at least 32 characters). `.env` is ignored by Git.
+2. Run `docker compose up --build`. The first build downloads images and libraries and can take several minutes.
+3. Open <http://localhost:3000>, create an account and run a simulation. Swagger UI is at <http://localhost:8080/swagger-ui.html>.
+4. Stop with Ctrl+C, then `docker compose down`. The database is kept in a Docker volume (`docker compose down -v` also deletes it).
+
+Do not run this at the same time as the IntelliJ backend: both use port 8080.
+
+**Continuous integration:** `.github/workflows/ci.yml` runs on every push: backend tests (Maven), frontend tests and build (npm), and a build of the Docker images.
 
 ## Using PostgreSQL (Phase 5)
 
